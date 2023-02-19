@@ -1,4 +1,5 @@
 const config = require("./config");
+require("dotenv").config();
 
 const EMAIL_REGEX =
   /([\w-\.]+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([\w-]+\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\]?)$/;
@@ -50,4 +51,40 @@ module.exports.signUp = (res, req) => {
       req.send({ isSuccess: 1 });
     }
   );
+};
+
+const jwt = require("jsonwebtoken");
+module.exports.signIn = (req, res) => {
+  const { email, password } = req.body;
+  config.query(`SELECT * FROM USER WHERE email = '${email}'`, (error, rows) => {
+    if (error) throw error;
+    if (!rows.length) {
+      res.status(404).send({
+        isSuccess: 0,
+        message: "없는 계정입니다.",
+      });
+    }
+    const { password: passwordInDB } = rows[0];
+    if (passwordInDB !== password) {
+      res.status(404).send({
+        isSuccess: 0,
+        message: "비밀번호가 일치하지 않습니다.",
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        email,
+        password,
+      },
+      process.env.SECRET,
+      {
+        expiresIn: "15m",
+      }
+    );
+    res.send({
+      isSuccess: 1,
+      token,
+    });
+  });
 };
