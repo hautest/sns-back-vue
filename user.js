@@ -1,4 +1,4 @@
-const config = require("./config");
+const { config } = require("./config");
 require("dotenv").config();
 
 const EMAIL_REGEX =
@@ -7,6 +7,8 @@ const isEmail = new RegExp(EMAIL_REGEX);
 
 const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
 const isPassword = new RegExp(PASSWORD_REGEX);
+
+const EXPIRES_IN = "15m";
 
 module.exports.signUp = (res, req) => {
   const { email, password, rePassword } = res.body;
@@ -79,12 +81,65 @@ module.exports.signIn = (req, res) => {
       },
       process.env.SECRET,
       {
-        expiresIn: "15m",
+        expiresIn: EXPIRES_IN,
       }
     );
     res.send({
       isSuccess: 1,
       token,
     });
+  });
+};
+
+function verifyToken(token) {
+  try {
+    return jwt.verify(token, process.env.SECRET);
+  } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      return "기간이 만료된 토큰입니다.";
+    } else {
+      return "유효하지 않은 토큰입니다.";
+    }
+  }
+}
+
+function refreshAccessToken(token) {
+  const decoded = verifyToken(token);
+  if (
+    decoded === "기간이 만료된 토큰입니다." ||
+    decoded === "유효하지 않은 토큰입니다."
+  )
+    return decoded;
+
+  const { email, paaword } = decoded;
+  const refreshToken = jwt.sign(
+    {
+      email,
+      paaword,
+    },
+    process.env.SECRET,
+    {
+      expiresIn: EXPIRES_IN,
+    }
+  );
+  return refreshToken;
+}
+
+module.exports.verify = (req, res) => {
+  const token = req.headers.authorization;
+  const result = refreshAccessToken(token);
+
+  if (
+    result === "기간이 만료된 토큰입니다." ||
+    result === "유효하지 않은 토큰입니다."
+  ) {
+    res.status(401).send({
+      isSuccess: 0,
+      message: result,
+    });
+  }
+
+  res.send({
+    token: result,
   });
 };
